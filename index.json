@@ -1,13 +1,13 @@
 [
   {
-    "name": "Erai-raws Spanish Only",
+    "name": "Only Sp", 
     "id": "erairaws-es",
     "version": "1.0.0",
     "type": "torrent",
-    "accuracy": "high",
+    "accuracy": "medium",
     "media": "sub",
     "languages": ["ES"],
-    "icon": "https://i.imgur.com/kdP4v6R.png",
+    "icon": "https://i.pinimg.com/736x/47/36/90/473690952d3264391eaff47d06c649a4.jpg",
     "code": "https://raw.githubusercontent.com/Amanefeynris/amanefeynatsu/main/erai.js"
   }
 ]
