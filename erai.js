@@ -21,7 +21,7 @@ export default {
 
     const searchURL =
       "https://nyaa.si/?f=0&c=1_2&q=" +
-      encodeURIComponent(titles + "erai-raws");
+      encodeURIComponent(titles + " erai-raws");
 
     const res = await query.fetch(searchURL);
     const html = await res.text();
