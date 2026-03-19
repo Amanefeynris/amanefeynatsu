@@ -40,22 +40,23 @@ export default new class EraiSpanishOnly extends AbstractSource {
       if (cells.length < 7) continue
       
       try {
-
         const titleLink = cells[1].querySelector('a[title]')
         if (!titleLink) continue
         
         const title = titleLink.getAttribute('title') || titleLink.textContent.trim()
+        const titleLower = title.toLowerCase()
 
         // SOLO ERAI-RAWS
-        if (!title.toLowerCase().includes("erai")) continue
+        if (!titleLower.includes("erai")) continue
 
         // SOLO SI TIENE ESPAÑOL
         if (
-          !title.toLowerCase().includes("spanish") &&
-          !title.toLowerCase().includes("español") &&
-          !title.toLowerCase().includes("sub esp") &&
-          !title.toLowerCase().includes("latino") &&
-          !title.toLowerCase().includes("multi-sub")
+          !titleLower.includes("spanish") &&
+          !titleLower.includes("español") &&
+          !titleLower.includes("sub esp") &&
+          !titleLower.includes("sub español") &&
+          !titleLower.includes("latino") &&
+          !titleLower.includes("multi-sub")
         ) continue
 
         const downloadLinks = cells[2].querySelectorAll('a')
@@ -97,7 +98,7 @@ export default new class EraiSpanishOnly extends AbstractSource {
           date: new Date()
         })
 
-      } catch (error) {
+      } catch {
         continue
       }
     }
@@ -114,7 +115,7 @@ export default new class EraiSpanishOnly extends AbstractSource {
     return this.parseResults(html)
   }
 
-  async single({ titles, episode, resolution }) {
+  async single({ titles, episode }) {
 
     if (!titles?.length) throw new Error('No titles provided')
 
@@ -129,6 +130,7 @@ export default new class EraiSpanishOnly extends AbstractSource {
   }
 
   async batch({ titles }) {
+
     if (!titles?.length) throw new Error('No titles provided')
 
     const query = encodeURIComponent(titles[0] + " era-raws batch")
@@ -136,6 +138,7 @@ export default new class EraiSpanishOnly extends AbstractSource {
   }
 
   async movie({ titles }) {
+
     if (!titles?.length) throw new Error('No titles provided')
 
     const query = encodeURIComponent(titles[0] + " era-raws movie")
