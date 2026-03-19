@@ -1,15 +1,10 @@
 [
   {
-    "name": "Erai-raws Spanish Only",
+    "name": "Spanish Only",
     "id": "erairaws-es",
     "version": "1.0.0",
-    "description": "Only Erai-raws torrents with Spanish subtitles",
     "type": "torrent",
     "accuracy": "high",
-    "ratio": 0,
-    "media": "sub",
-    "languages": ["ES"],
-    "icon": "https://nyaa.si/static/favicon.png",
     "code": "https://raw.githubusercontent.com/Amanefeynris/amanefeynatsu/main/erai.js"
   }
 ]
