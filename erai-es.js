@@ -1,141 +1,132 @@
-export default new class Nyaa {
+export default new class EraiRaws {
   base = 'https://torrent-search-api-livid.vercel.app/api/nyaasi/'
 
   /** @type {import('./').SearchFunction} */
-  async single({ titles, episode, exclusions = [], type = 'sub' }) {
+  async single({ titles, episode, exclusions = [] }) {
     if (!titles?.length) return []
 
-    // Si el tipo es 'sub', asumimos que quieren subs en español
-    // (asumiendo que la app está configurada para español)
-    const query = this.buildQuery(titles[0], episode)
+    // Búsqueda específica para Erai-raws
+    const query = this.buildEraiQuery(titles[0], episode)
     const url = `${this.base}${encodeURIComponent(query)}`
 
-    // Usar el fetch proporcionado por la app
     const res = await fetch(url)
     const data = await res.json()
 
     if (!Array.isArray(data)) return []
 
-    // Filtrar resultados basado en exclusions y tipo
-    return this.filterResults(data, exclusions, type)
+    // Filtrar SOLO resultados de Erai-raws
+    return this.filterEraiResults(data, exclusions)
   }
 
   /** @type {import('./').SearchFunction} */
-  batch = this.single
-  movie = this.single
+  batch({ titles, exclusions = [] }) {
+    // Para batches, buscar sin número de episodio
+    return this.single({ titles, episode: undefined, exclusions })
+  }
 
-  buildQuery(title, episode) {
-    let query = title.replace(/[^\w\s-]/g, ' ').trim()
+  /** @type {import('./').SearchFunction} */
+  movie({ titles, exclusions = [] }) {
+    // Para películas, buscar sin número de episodio
+    return this.single({ titles, episode: undefined, exclusions })
+  }
+
+  buildEraiQuery(title, episode) {
+    // Limpiar el título para buscar
+    let cleanTitle = title.replace(/[^\w\s-]/g, ' ').trim()
     
-    // Para episodios, añadir padding
+    // Construir query específico para Erai-raws
+    let query = `[Erai-raws] ${cleanTitle}`
+    
     if (episode) {
-      query += ` ${episode.toString().padStart(2, '0')}`
+      // Erai-raws típicamente pone el episodio como " - XX"
+      query += ` - ${episode.toString().padStart(2, '0')}`
     }
     
-    // Nota: NO añadimos "spanish" al query porque queremos mantener
-    // la búsqueda amplia y luego filtrar/priorizar
+    // Añadir MultiSub que es característico de Erai-raws
+    query += ' MultiSub'
+    
     return query
   }
 
-  filterResults(data, exclusions, type) {
-    // Definir patrones para español (lo que QUEREMOS)
-    const spanishPatterns = [
-      /spanish/i, /español/i, /castellano/i, 
-      /subesp/i, /\[es\]/i, /\(es\)/i, /-es\b/i,
-      /sub español/i, /sub es/i, /latino/i, /spa/i
-    ]
-
-    // Definir patrones para inglés (lo que NO QUEREMOS prioritariamente)
-    const englishPatterns = [
-      /english/i, /inglés/i, /\[en\]/i, /\(en\)/i, /-en\b/i,
-      /sub eng/i, /sub en/i, /multi audio/i, /dual audio/i,
-      /multi sub/i
-    ]
-
-    // Procesar y categorizar resultados
-    const results = data.map(item => {
-      const title = item.Name || ''
-      
-      // Determinar si es español
-      const isSpanish = spanishPatterns.some(pattern => pattern.test(title))
-      
-      // Determinar si es inglés (para priorización negativa)
-      const isEnglish = !isSpanish && englishPatterns.some(pattern => pattern.test(title))
-      
-      // Calcular accuracy basado en qué tan "español" es
-      let accuracy = 'low'
-      if (isSpanish) {
-        // Si tiene múltiples indicadores de español, alta precisión
-        const spanishMatches = spanishPatterns.filter(p => p.test(title)).length
-        accuracy = spanishMatches >= 2 ? 'high' : 'medium'
-      } else if (!isEnglish) {
-        // Si no es ni español ni inglés, precisión media (podría ser español sin marcadores)
-        accuracy = 'medium'
-      }
-
-      // Aplicar exclusions de la app
-      const shouldExclude = exclusions.some(exclude => 
-        title.toLowerCase().includes(exclude.toLowerCase())
-      )
-
-      if (shouldExclude) return null
-
-      const hash = item.Magnet?.match(/btih:([a-fA-F0-9]+)/)?.[1] || ''
-
-      return {
-        title,
-        link: item.Magnet || '',
-        hash,
-        seeders: parseInt(item.Seeders || '0'),
-        leechers: parseInt(item.Leechers || '0'),
-        downloads: parseInt(item.Downloads || '0'),
-        size: this.parseSize(item.Size),
-        date: new Date(item.DateUploaded),
-        accuracy,
-        type: this.determineType(title, isSpanish),
-        // Un peso para ordenar (menor = mejor)
-        _sortWeight: this.calculateWeight(isSpanish, isEnglish, item.Seeders)
-      }
-    }).filter(r => r !== null)
-
-    // Ordenar: primero por peso (español mejor), luego por seeders
-    return results
-      .sort((a, b) => {
-        if (a._sortWeight !== b._sortWeight) {
-          return a._sortWeight - b._sortWeight
+  filterEraiResults(data, exclusions) {
+    return data
+      .filter(item => {
+        const title = item.Name || ''
+        
+        // 1. SOLO resultados de Erai-raws
+        if (!title.includes('[Erai-raws]')) return false
+        
+        // 2. Debe tener MultiSub (todos los de Erai-raws lo tienen, pero por si acaso)
+        if (!title.includes('MultiSub')) return false
+        
+        // 3. Aplicar exclusions de la app
+        const shouldExclude = exclusions.some(exclude => 
+          title.toLowerCase().includes(exclude.toLowerCase())
+        )
+        if (shouldExclude) return false
+        
+        return true
+      })
+      .map(item => {
+        const title = item.Name || ''
+        const hash = item.Magnet?.match(/btih:([a-fA-F0-9]+)/)?.[1] || ''
+        
+        // Extraer resolución del título (siempre está en el formato [1080p], [720p], etc)
+        const resolutionMatch = title.match(/\[(\d{3,4}p)\]/)
+        const resolution = resolutionMatch ? resolutionMatch[1] : 'unknown'
+        
+        // Extraer código de calidad (NF, AMZN, CR, etc)
+        const sourceMatch = title.match(/\]\s*([A-Z]+)\s+WEB-DL/)
+        const source = sourceMatch ? sourceMatch[1] : 'unknown'
+        
+        // Determinar tipo basado en el título
+        let type = 'alt'
+        if (resolution === '1080p') {
+          // Si es 1080p y de buena fuente, podría ser best
+          if (source === 'NF' || source === 'AMZN' || source === 'CR') {
+            type = 'best'
+          }
         }
+        
+        // Como todos son MultiSub, asumimos que pueden tener español
+        // Pero podemos dar más accuracy si el título indica español específicamente
+        const hasSpanish = title.toLowerCase().includes('spanish') || 
+                          title.toLowerCase().includes('español') ||
+                          title.toLowerCase().includes('castellano')
+        
+        return {
+          title,
+          link: item.Magnet || '',
+          hash,
+          seeders: parseInt(item.Seeders || '0'),
+          leechers: parseInt(item.Leechers || '0'),
+          downloads: parseInt(item.Downloads || '0'),
+          size: this.parseSize(item.Size),
+          date: new Date(item.DateUploaded),
+          // Accuracy: high si tiene indicadores de español, medium si no
+          accuracy: hasSpanish ? 'high' : 'medium',
+          type,
+          // Metadata adicional que podría ser útil (no parte de la interfaz oficial)
+          _resolution: resolution,
+          _source: source
+        }
+      })
+      .sort((a, b) => {
+        // Orden personalizado:
+        // 1. Primero los que tienen español
+        if (a.accuracy === 'high' && b.accuracy !== 'high') return -1
+        if (a.accuracy !== 'high' && b.accuracy === 'high') return 1
+        
+        // 2. Luego por resolución (1080p > 720p > 480p)
+        const resOrder = { '1080p': 0, '720p': 1, '540p': 2, '480p': 3 }
+        const aRes = resOrder[a._resolution] || 999
+        const bRes = resOrder[b._resolution] || 999
+        if (aRes !== bRes) return aRes - bRes
+        
+        // 3. Finalmente por seeders
         return (b.seeders || 0) - (a.seeders || 0)
       })
-      .map(({ _sortWeight, ...rest }) => rest) // Quitar el peso temporal
-  }
-
-  calculateWeight(isSpanish, isEnglish, seeders) {
-    // Pesos más bajos = mejor posición
-    if (isSpanish) return 0 // Español siempre primero
-    if (!isEnglish) return 1 // Idioma neutral segundo
-    return 2 // Inglés último
-  }
-
-  determineType(title, isSpanish) {
-    const lowerTitle = title.toLowerCase()
-    
-    // Detectar si es batch
-    if (lowerTitle.includes('batch') || lowerTitle.includes('complete')) {
-      return 'batch'
-    }
-    
-    // Si es español y tiene buena calidad, podría ser 'best'
-    if (isSpanish) {
-      if (lowerTitle.includes('bluray') || lowerTitle.includes('bd') || 
-          lowerTitle.includes('remux') || lowerTitle.includes('2160p')) {
-        return 'best'
-      }
-      if (lowerTitle.includes('web') || lowerTitle.includes('1080p')) {
-        return 'alt'
-      }
-    }
-    
-    return undefined
+      .map(({ _resolution, _source, ...rest }) => rest) // Quitar metadata extra
   }
 
   parseSize(sizeStr) {
@@ -158,7 +149,8 @@ export default new class Nyaa {
 
   async test() {
     try {
-      const res = await fetch(this.base + 'one piece')
+      // Test con un anime específico para Erai-raws
+      const res = await fetch(this.base + '[Erai-raws]%20MultiSub')
       return res.ok
     } catch {
       return false
